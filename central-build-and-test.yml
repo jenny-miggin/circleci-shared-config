@@ -1,0 +1,25 @@
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Build my app
+          command: echo "Build my app"
+  test:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run:
+          name: Test my app
+          command: echo "Test my app"
+
+workflows:
+build-and-test:
+  jobs:
+    - build
+    - test

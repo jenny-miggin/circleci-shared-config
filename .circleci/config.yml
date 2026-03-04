@@ -1,0 +1,43 @@
+version: 2.1
+
+orbs:
+  circleci-cli: circleci/circleci-cli@3.2.0
+
+jobs:
+  validate-configs:
+    executor: circleci-cli/default
+    steps:
+      - checkout
+      - run:
+          name: Validate all YAML files
+          command: |
+            FAILED=0
+            FILES=$(find . -type f \( -name "*.yml" -o -name "*.yaml" \) | grep -v "^\./\.git/")
+
+            if [ -z "$FILES" ]; then
+              echo "No YAML files found to validate."
+              exit 0
+            fi
+
+            for FILE in $FILES; do
+              echo "Validating: $FILE"
+              if circleci config validate --skip-update-check "$FILE"; then
+                echo "PASS: $FILE"
+              else
+                echo "FAIL: $FILE"
+                FAILED=1
+              fi
+              echo "---"
+            done
+
+            if [ "$FAILED" -ne 0 ]; then
+              echo "One or more YAML files failed validation."
+              exit 1
+            fi
+
+            echo "All YAML files passed validation."
+
+workflows:
+  validate:
+    jobs:
+      - validate-configs
