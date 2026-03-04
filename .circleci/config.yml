@@ -8,6 +8,7 @@ jobs:
     executor: circleci-cli/default
     steps:
       - checkout
+      - circleci-cli/install
       - run:
           name: Validate all YAML files
           command: |
