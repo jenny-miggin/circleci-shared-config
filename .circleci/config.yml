@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   validate-configs:
     docker:
-      - image: circleci/circleci-cli:3.2.0
+      - image: circleci/circleci-cli:latest
     resource_class: small
     steps:
       - checkout
