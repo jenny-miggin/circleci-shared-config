@@ -1,14 +1,12 @@
 version: 2.1
 
-orbs:
-  circleci-cli: circleci/circleci-cli@0.1.9
-
 jobs:
   validate-configs:
-    executor: circleci-cli/default
+    docker:
+      - image: cimg/base:stable
+    resource_class: small
     steps:
       - checkout
-      - circleci-cli/install
       - run:
           name: Validate all YAML files
           command: |
