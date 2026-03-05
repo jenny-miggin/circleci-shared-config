@@ -1,0 +1,60 @@
+version: 2.1
+
+# All repo-specific values are set as project-level environment variables in CircleCI.
+# No per-repo config files are needed — just set these once per project:
+#
+#   AWS_ROLE_ARN         - IAM role ARN for OIDC authentication
+#   AWS_REGION           - AWS region (e.g. eu-west-1)
+#   IMAGE_NAME           - Docker image name
+#   ECR_REPO             - ECR repository name
+#   SOURCE               - Source identifier
+#   SSM_PREFIX           - SSM parameter store prefix
+#   CONTAINER_ACCOUNT_ID - AWS account ID for ECR
+
+orbs:
+  aws-cli: circleci/aws-cli@3.2.0
+
+jobs:
+  sts:
+    docker:
+      - image: governmentpaas/awscli
+    steps:
+      - checkout
+      - aws-cli/setup:
+          role-arn: "$AWS_ROLE_ARN"
+          role-session-name: "circleci-oidc-role"
+          session-duration: "7200"
+
+  build_and_deploy_image:
+    docker:
+      - image: cimg/aws:2024.03
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Login to ECR
+          command: |
+            echo "Login to ${CONTAINER_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com ..."
+            echo "Successfully logged in."
+      - run:
+          name: Build Docker image
+          command: |
+            echo "Building image $IMAGE_NAME"
+            echo "Successfully built image."
+      - run:
+          name: Push image to ECR
+          command: |
+            IMAGE_TAG="build_${CIRCLE_BUILD_NUM}"
+            echo "docker push ${CONTAINER_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+            echo "Successfully pushed image."
+
+workflows:
+  build-and-deploy:
+    jobs:
+      - sts
+      - build_and_deploy_image:
+          requires:
+            - sts
