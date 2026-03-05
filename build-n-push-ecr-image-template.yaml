@@ -1,147 +1,68 @@
 version: 2.1
 
+# All repo-specific values are set as project-level environment variables in CircleCI, or within project-specific contexts.
+# Just set these once per project:
+#
+#   AWS_ROLE_ARN         - IAM role ARN for OIDC authentication
+#   AWS_REGION           - AWS region (e.g. eu-west-1)
+#   IMAGE_NAME           - Docker image name
+#   ECR_REPO             - ECR repository name
+#   SOURCE               - Source identifier
+#   SSM_PREFIX           - SSM parameter store prefix
+#   CONTAINER_ACCOUNT_ID - AWS account ID for ECR
+
 orbs:
-  sts: circleci/aws-cli@3.2.0
-
-parameters:
-  aws_role_arn:
-    type: string
-    default: ""
-  image_name:
-    type: string
-    default: ""
-  ecr_repo:
-    type: string
-    default: ""
-  source:
-    type: string
-    default: ""
-  ssm_prefix:
-    type: string
-    default: ""
-  region:
-    type: string
-    default: ""
-
-commands:
-  load_bash_env:
-    parameters:
-      region:
-        type: string
-      ssm_prefix:
-        type: string
-    steps:
-      - run:
-          name: Load shared env logic
-          command: |
-            if [ "${CIRCLE_BRANCH}" = "master" ]; then
-              echo "this is the master branch"
-            else
-              echo "this is not the master branch"
-            fi
-          
-            echo "export AWS_REGION=<< parameters.region >>"
-            echo "export SSM_PREFIX=<< parameters.ssm_prefix >>"
-
-  login_to_ecr:
-    steps:
-      - run:
-          name: Login to ECR
-          command: |
-            echo "Login to abc123.dkr.ecr.${AWS_REGION}.amazonaws.com ..."
-            echo "Successfully logged in."
-
-  build_image:
-    steps:
-      - run:
-          name: Build Docker image
-          command: |
-            echo "Building image $IMAGE_NAME"
-            echo "Successfully built image."
-
-  push_to_ecr:
-    parameters:
-      ecr_repo:
-        type: string
-      resource_type:
-        type: string
-        default: "service"
-    steps:
-      - run:
-          name: Push image to ECR
-          command: |
-            IMAGE_TAG="build_${CIRCLE_BUILD_NUM}"
-
-            echo " the tag is: docker tag ${IMAGE_NAME}:latest \
-              "${CONTAINER_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/<< parameters.ecr_repo >>:${IMAGE_TAG}" "
-
-            echo " the push is: docker push "${CONTAINER_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/<< parameters.ecr_repo >>:${IMAGE_TAG}" "
-            echo "Successfully pushed image."
+  aws-cli: circleci/aws-cli@3.2.0
 
 jobs:
   sts:
-    parameters:
-      aws_role_arn:
-        type: string
     docker:
       - image: governmentpaas/awscli
     steps:
       - checkout
-      - sts/setup:
-          role-arn: "<< parameters.aws_role_arn >>"
-          role-session-name: 'circleci-oidc-role'
-          session-duration: '7200'
+      - run: 
+          name: Print AWS_ROLE_ARN
+          command: |
+              echo "AWS_ROLE_ARN: $AWS_ROLE_ARN"
+      # - aws-cli/setup:
+      #     role-arn: "$AWS_ROLE_ARN"
+      #     role-session-name: "circleci-oidc-role"
+      #     session-duration: "7200"
 
   build_and_deploy_image:
-    parameters:
-      image_name:
-        type: string
-      ecr_repo:
-        type: string
-      source:
-        type: string
-      ssm_prefix:
-        type: string
-      resource_type:
-        type: string
-        default: "service"
-      region:
-        type: string
     docker:
       - image: cimg/aws:2024.03
     steps:
       - checkout
-      - attach_workspace:
-          at: ~/
-      - load_bash_env:
-          region: "<< parameters.region >>"
-          ssm_prefix: "<< parameters.ssm_prefix >>"
-      - setup_remote_docker:
-          docker_layer_caching: true      
-      - run:
-          name: Set image env
+      - run: 
+          name: Print AWS_ROLE_ARN
           command: |
-            echo "export IMAGE_NAME=<< parameters.image_name >>" >> $BASH_ENV
-            echo "export SOURCE=<< parameters.source >>" >> $BASH_ENV
-            source $BASH_ENV
-      - login_to_ecr
-      - build_image
-      - push_to_ecr:
-          ecr_repo: "<< parameters.ecr_repo >>"
-          resource_type: "<< parameters.resource_type >>"
+              echo "AWS_ROLE_ARN: $AWS_ROLE_ARN and AWS_REGION: $AWS_REGION"
+      # - attach_workspace:
+      #     at: ~/
+      # - setup_remote_docker:
+      #     docker_layer_caching: true
+      # - run:
+      #     name: Login to ECR
+      #     command: |
+      #       echo "Login to ${CONTAINER_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com ..."
+      #       echo "Successfully logged in."
+      # - run:
+      #     name: Build Docker image
+      #     command: |
+      #       echo "Building image $IMAGE_NAME"
+      #       echo "Successfully built image."
+      # - run:
+      #     name: Push image to ECR
+      #     command: |
+      #       IMAGE_TAG="build_${CIRCLE_BUILD_NUM}"
+      #       echo "docker push ${CONTAINER_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+      #       echo "Successfully pushed image."
 
 workflows:
   build-and-deploy:
     jobs:
-      - sts:
-          aws_role_arn: << pipeline.parameters.aws_role_arn >>
-
+      - sts
       - build_and_deploy_image:
-          name: build-<< pipeline.parameters.image_name >>
-          image_name: << pipeline.parameters.image_name >>
-          ecr_repo: << pipeline.parameters.ecr_repo >>
-          source: << pipeline.parameters.source >>
-          ssm_prefix: << pipeline.parameters.ssm_prefix >>
-          region: << pipeline.parameters.region >>
           requires:
             - sts
